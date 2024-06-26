@@ -5,14 +5,9 @@ use std::io::{Read, Write};
 fn handle_client(mut stream: std::net::TcpStream) {
     let mut buffer = [0; 1024];
     stream.read(&mut buffer).unwrap();
-    let request = String::from_utf8_lossy(&buffer[..]);
 
-    println!("{}", request);
-
-    if request.trim() == "PING" {
         let response = "+PONG\r\n";
         stream.write(response.as_bytes()).unwrap();
-    }
 }
 
 fn main() {
@@ -25,7 +20,7 @@ fn main() {
 
     for stream in listener.incoming() {
         match stream {
-            Ok(stream) => {
+            Ok(mut stream) => {
                 println!("accepted new connection");
                 handle_client(stream);
             }
