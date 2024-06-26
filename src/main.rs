@@ -7,6 +7,8 @@ fn handle_client(mut stream: std::net::TcpStream) {
     stream.read(&mut buffer).unwrap();
     let request = String::from_utf8_lossy(&buffer[..]);
 
+    println!("{}", request);
+
     if request.trim() == "PING" {
         let response = "+PONG\r\n";
         stream.write(response.as_bytes()).unwrap();
@@ -19,7 +21,7 @@ fn main() {
 
     // Uncomment this block to pass the first stage
 
-    let listener = std::net::TcpListener::bind("127.0.0.1:6379").unwrap();
+    let listener = TcpListener::bind("127.0.0.1:6379").unwrap();
 
     for stream in listener.incoming() {
         match stream {
