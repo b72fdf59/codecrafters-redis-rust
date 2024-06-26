@@ -6,8 +6,8 @@ fn handle_client(mut stream: std::net::TcpStream) {
     let mut buffer = [0; 1024];
     stream.read(&mut buffer).unwrap();
 
-        let response = "+PONG\r\n";
-        stream.write(response.as_bytes()).unwrap();
+    let response = "+PONG\r\n";
+    stream.write(response.as_bytes()).unwrap();
 }
 
 fn main() {
@@ -20,7 +20,7 @@ fn main() {
 
     for stream in listener.incoming() {
         match stream {
-            Ok(mut stream) => {
+            Ok(stream) => {
                 println!("accepted new connection");
                 handle_client(stream);
             }
