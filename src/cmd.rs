@@ -79,15 +79,5 @@ impl Command {
             other => Self::Unknown(format!("expected an array, got {other:?}")),
         }
     }
-
-    pub fn respond(self) -> DataType {
-        match self {
-            Self::Ping => DataType::SimpleString("PONG".to_string()),
-            Self::Echo(s) => DataType::BulkString(s),
-            Self::Set(_, _) => DataType::SimpleString("OK".to_string()),
-            Self::Get(_) => DataType::SimpleString("".to_string()),
-            Self::Unknown(s) => DataType::Error(s),
-        }
-    }
 }
 

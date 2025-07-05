@@ -5,6 +5,7 @@ use tokio::net::TcpStream;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum DataType {
+    Null,
     SimpleString(String),
     BulkString(String),
     Error(String),
@@ -14,6 +15,7 @@ pub enum DataType {
 impl DataType {
     pub fn serialize(self) -> String {
         match self {
+            DataType::Null => "$-1\r\n".to_string(),
             DataType::SimpleString(s) => format!("+{s}\r\n"),
             DataType::BulkString(s) => format!("${}\r\n{}\r\n", s.chars().count(), s),
             DataType::Array(arr) => {
@@ -66,10 +68,7 @@ pub fn parse_resp(data: &[u8]) -> Result<Option<(DataType, usize)>> {
         '+' => parse_simple_string(data),
         '$' => parse_bulk_string(data),
         '*' => parse_array(data),
-        _ => Ok(Some((
-            DataType::Error("unknown message: {data}".to_string()),
-            data.len(),
-        ))),
+        _ => Err(anyhow!("Unknown mesage: {data:?}")),
     }
 }
 
