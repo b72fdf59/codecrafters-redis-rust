@@ -5,13 +5,20 @@ use bytes::Bytes;
 use resp::DataType;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
 
 mod cmd;
 mod resp;
 
-type Db = Arc<Mutex<HashMap<String, Bytes>>>;
+#[derive(Debug)]
+struct ExpirableValue {
+    value: Bytes,
+    expiry: Option<Instant>,
+}
+
+type Db = Arc<Mutex<HashMap<String, ExpirableValue>>>;
 
 async fn process(mut socket: TcpStream, db: Db) -> Result<()> {
     loop {
@@ -25,15 +32,37 @@ async fn process(mut socket: TcpStream, db: Db) -> Result<()> {
         let response = match command {
             Command::Ping => DataType::SimpleString("PONG".to_string()),
             Command::Echo(s) => DataType::BulkString(s),
-            Command::Set(key, value) => {
+            Command::Set(key, value, expiry_ms) => {
                 let mut db = db.lock().unwrap();
-                db.insert(key, Bytes::from(value));
-                DataType::BulkString("OK".to_string())
+                let expiry = expiry_ms.map(|ms| Instant::now() + Duration::from_millis(ms));
+                db.insert(
+                    key,
+                    ExpirableValue {
+                        value: Bytes::from(value),
+                        expiry,
+                    },
+                );
+                DataType::SimpleString("OK".to_string())
             }
             Command::Get(key) => {
-                let db = db.lock().unwrap();
+                let mut db = db.lock().unwrap();
                 match db.get(&key) {
-                    Some(value) => DataType::BulkString(String::from_utf8_lossy(value).to_string()),
+                    Some(expirable_value) => {
+                        if let Some(expiry) = expirable_value.expiry {
+                            if expiry <= Instant::now() {
+                                db.remove(&key);
+                                DataType::Null
+                            } else {
+                                DataType::BulkString(
+                                    String::from_utf8_lossy(&expirable_value.value).to_string(),
+                                )
+                            }
+                        } else {
+                            DataType::BulkString(
+                                String::from_utf8_lossy(&expirable_value.value).to_string(),
+                            )
+                        }
+                    }
                     None => DataType::Null,
                 }
             }
