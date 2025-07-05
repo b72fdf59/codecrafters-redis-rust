@@ -6,6 +6,7 @@ pub enum Command {
     Echo(String),
     Get(String),
     Set(String, String, Option<u64>),
+    Info(String),
     Unknown(String),
 }
 
@@ -30,7 +31,6 @@ impl Command {
                     "ping" => Self::Ping,
                     "echo" => {
                         let arg1 = match args.next() {
-                            Some(DataType::SimpleString(s)) => s,
                             Some(DataType::BulkString(bs)) => bs,
                             other => {
                                 return Self::Unknown(format!(
@@ -108,6 +108,17 @@ impl Command {
                             }
                         }
                         Self::Set(key, value, expiry)
+                    }
+                    "info" => {
+                        let section = match args.next() {
+                            Some(DataType::SimpleString(s)) => s,
+                            other => {
+                                return Self::Unknown(format!(
+                                    "expected a bulk string, got {other:?}"
+                                ))
+                            }
+                        };
+                        Self::Info(section)
                     }
                     other => Self::Unknown(other.to_string()),
                 }

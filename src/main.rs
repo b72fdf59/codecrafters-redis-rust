@@ -73,6 +73,14 @@ async fn process(mut socket: TcpStream, db: Db) -> Result<()> {
                     None => DataType::Null,
                 }
             }
+            Command::Info(section) => {
+                if section.to_lowercase() == "replication" {
+                    let info = "role:master\r\n";
+                    DataType::BulkString(info.to_string())
+                } else {
+                    DataType::Error(format!("unknown section {section}"))
+                }
+            }
             Command::Unknown(s) => DataType::Error(s),
         };
 
