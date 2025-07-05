@@ -1,12 +1,11 @@
-use std::net::TcpListener;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpListener;
 
-use std::io::{Read, Write};
-
-fn handle_client(mut stream: std::net::TcpStream) -> std::io::Result<()> {
+async fn process(mut socket: tokio::net::TcpStream) -> std::io::Result<()> {
     let mut buffer = [0; 1024]; // buffer for reading
 
     loop {
-        match stream.read(&mut buffer) {
+        match socket.read(&mut buffer).await {
             Ok(0) => break,
             Ok(_) => {
                 // Process the received data (optional: print for debugging)
@@ -14,8 +13,8 @@ fn handle_client(mut stream: std::net::TcpStream) -> std::io::Result<()> {
 
                 // Write response
                 let response = "+PONG\r\n";
-                stream.write_all(response.as_bytes())?;
-                stream.flush()?;
+                socket.write_all(response.as_bytes()).await?;
+                socket.flush().await?;
             }
             Err(e) => return Err(e),
         }
@@ -25,25 +24,22 @@ fn handle_client(mut stream: std::net::TcpStream) -> std::io::Result<()> {
     Ok(())
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
     println!("Logs from your program will appear here!");
 
     // Uncomment this block to pass the first stage
 
-    let listener = TcpListener::bind("127.0.0.1:6379").unwrap();
+    let listener = TcpListener::bind("127.0.0.1:6379").await.unwrap();
 
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                println!("accepted new connection");
-                if let Err(e) = handle_client(stream) {
-                    eprintln!("Error handling client: {e}")
-                }
+    loop {
+        let (socket, _) = listener.accept().await.unwrap();
+        println!("accepted new connection");
+        tokio::spawn(async move {
+            if let Err(e) = process(socket).await {
+                eprintln!("err prococessing socket {e}");
             }
-            Err(e) => {
-                println!("error: {e}");
-            }
-        }
+        });
     }
 }
