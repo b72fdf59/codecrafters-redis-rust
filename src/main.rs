@@ -87,7 +87,7 @@ async fn main() {
     let args = Args::parse();
 
     let port = args.port;
-    let listener = TcpListener::bind(format!("127.0.0.1:{}", port))
+    let listener = TcpListener::bind(format!("127.0.0.1:{port}"))
         .await
         .unwrap();
 
