@@ -1,28 +1,26 @@
-use resp::{parse_resp, DataType, RespListener};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpListener;
+use crate::cmd::Command;
+use crate::resp::RespListener;
+use anyhow::Result;
+use tokio::io::AsyncWriteExt;
+use tokio::net::{TcpListener, TcpStream};
 
+mod cmd;
 mod resp;
 
-async fn process(mut socket: tokio::net::TcpStream) -> std::io::Result<()> {
+async fn process(mut socket: TcpStream) -> Result<()> {
     loop {
-        let resp_listener = RespListener::new();
-        let response = match resp_listener.read(&mut socket) {
-            DataType::SimpleString(s) => {
+        let Some(data_type) = RespListener::new().read(&mut socket).await? else {
+            return Ok(());
+        };
 
-            }
+        let command = Command::parse(data_type);
+        println!("command: {command:?}");
 
-        }
+        let response = command.respond();
 
-
-            // Send response back to client
-            socket.write_all(response.serialise()).await?;
-            socket.flush().await?;
-        }
+        socket.write_all(response.serialize().as_bytes()).await?;
+        socket.flush().await?;
     }
-
-    println!("Connection closed, final buffer",);
-    Ok(())
 }
 
 #[tokio::main]

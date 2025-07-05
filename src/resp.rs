@@ -6,7 +6,7 @@ use tokio::net::TcpStream;
 #[derive(Clone, Debug, PartialEq)]
 pub enum DataType {
     SimpleString(String),
-    BulkString(&[u8]),
+    BulkString(String),
     Error(String),
     Array(Vec<DataType>),
 }
@@ -15,9 +15,9 @@ impl DataType {
     pub fn serialize(self) -> String {
         match self {
             DataType::SimpleString(s) => format!("+{s}\r\n"),
-            DataType::BulkString(s) => format!("${}\r\n{}\r\n", s.len(), s),
+            DataType::BulkString(s) => format!("${}\r\n{}\r\n", s.chars().count(), s),
             DataType::Array(arr) => {
-                let mut result = format!("*{}\r\n", arr.len());
+                let mut result = format!("* {}\r\n", arr.len());
                 for item in arr {
                     result.push_str(&item.serialize());
                 }
@@ -57,23 +57,15 @@ impl RespListener {
     }
 }
 
-fn find_crlf(buffer: &[u8]) -> Option<usize> {
-    buffer.windows(2).position(|window| window == b"\r\n")
-}
-
-fn read_line(buffer: &[u8]) -> Option<(&[u8], usize)> {
-    find_crlf(buffer).map(|pos| (&buffer[..pos], pos + 2))
-}
-
 pub fn parse_resp(data: &[u8]) -> Result<Option<(DataType, usize)>> {
     if data.is_empty() {
         return Ok(None);
     }
 
     match data[0] as char {
-        '+' => parse_simple_string(&data),
-        '$' => parse_bulk_string(&data),
-        '*' => parse_array(&data),
+        '+' => parse_simple_string(data),
+        '$' => parse_bulk_string(data),
+        '*' => parse_array(data),
         _ => Ok(Some((
             DataType::Error("unknown message: {data}".to_string()),
             data.len(),
@@ -140,7 +132,7 @@ fn parse_array(buffer: &[u8]) -> Result<Option<(DataType, usize)>> {
         .map_err(|_| anyhow!("Invalid array length"))?;
 
     if count == -1 {
-        return Ok(Some((DataType::Array("".to_string()), line_len)));
+        return Ok(Some((DataType::Array(vec![]), line_len)));
     }
 
     let count = count as usize;
@@ -158,4 +150,12 @@ fn parse_array(buffer: &[u8]) -> Result<Option<(DataType, usize)>> {
     }
 
     Ok(Some((DataType::Array(elements), total_consumed)))
+}
+
+fn find_crlf(buffer: &[u8]) -> Option<usize> {
+    buffer.windows(2).position(|window| window == b"\r\n")
+}
+
+fn read_line(buffer: &[u8]) -> Option<(&[u8], usize)> {
+    find_crlf(buffer).map(|pos| (&buffer[..pos], pos + 2))
 }
