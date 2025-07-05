@@ -5,27 +5,27 @@ use tokio::net::TcpStream;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum DataType {
-    Null,
     SimpleString(String),
     BulkString(String),
     Error(String),
     Array(Vec<DataType>),
+    Null,
 }
 
 impl DataType {
     pub fn serialize(self) -> String {
         match self {
-            DataType::Null => "$-1\r\n".to_string(),
             DataType::SimpleString(s) => format!("+{s}\r\n"),
             DataType::BulkString(s) => format!("${}\r\n{}\r\n", s.chars().count(), s),
             DataType::Array(arr) => {
-                let mut result = format!("* {}\r\n", arr.len());
+                let mut result = format!("*{}\r\n", arr.len());
                 for item in arr {
                     result.push_str(&item.serialize());
                 }
                 result
             }
             DataType::Error(s) => format!("-{s}\r\n"),
+            DataType::Null => "$-1\r\n".to_string(),
         }
     }
 }
@@ -42,19 +42,18 @@ impl RespListener {
     }
 
     pub async fn read(&mut self, stream: &mut TcpStream) -> Result<Option<DataType>> {
-        let n = stream.read_buf(&mut self.data).await?;
+        loop {
+            if let Some((data_type, consumed)) = parse_resp(&self.data)? {
+                self.data.advance(consumed);
+                return Ok(Some(data_type));
+            }
 
-        if n == 0 {
-            // Connection closed by peer
-            return Ok(None);
-        }
+            let n = stream.read_buf(&mut self.data).await?;
 
-        if let Some((data_type, consumed)) = parse_resp(&self.data)? {
-            self.data.advance(consumed);
-            Ok(Some(data_type))
-        } else {
-            // Not enough data to parse a full message
-            Ok(None)
+            if n == 0 {
+                // Connection closed by peer
+                return Ok(None);
+            }
         }
     }
 }
@@ -68,7 +67,10 @@ pub fn parse_resp(data: &[u8]) -> Result<Option<(DataType, usize)>> {
         '+' => parse_simple_string(data),
         '$' => parse_bulk_string(data),
         '*' => parse_array(data),
-        _ => Err(anyhow!("Unknown mesage: {data:?}")),
+        _ => Ok(Some((
+            DataType::Error("unknown message: {data}".to_string()),
+            data.len(),
+        ))),
     }
 }
 
@@ -95,7 +97,7 @@ fn parse_bulk_string(buffer: &[u8]) -> Result<Option<(DataType, usize)>> {
         .map_err(|_| anyhow!("Invalid bulk string length"))?;
 
     if len == -1 {
-        return Ok(Some((DataType::BulkString("".to_string()), line_len)));
+        return Ok(Some((DataType::Null, line_len)));
     }
 
     let len = len as usize;

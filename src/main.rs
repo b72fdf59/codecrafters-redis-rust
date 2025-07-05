@@ -2,6 +2,7 @@ use crate::cmd::Command;
 use crate::resp::RespListener;
 use anyhow::Result;
 use bytes::Bytes;
+use clap::Parser;
 use resp::DataType;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -11,6 +12,12 @@ use tokio::net::{TcpListener, TcpStream};
 
 mod cmd;
 mod resp;
+
+#[derive(Parser, Debug)]
+struct Args {
+    #[arg(long, default_value_t = 6379)]
+    port: u32,
+}
 
 #[derive(Debug)]
 struct ExpirableValue {
@@ -77,8 +84,14 @@ async fn process(mut socket: TcpStream, db: Db) -> Result<()> {
 #[tokio::main]
 async fn main() {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
-    println!("Listening!");
-    let listener = TcpListener::bind("127.0.0.1:6379").await.unwrap();
+    let args = Args::parse();
+
+    let port = args.port;
+    let listener = TcpListener::bind(format!("127.0.0.1:{}", port))
+        .await
+        .unwrap();
+
+    println!("Listening on port {port}");
 
     let db: Db = Arc::new(Mutex::new(HashMap::new()));
 
